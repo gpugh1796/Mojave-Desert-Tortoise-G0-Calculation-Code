@@ -318,6 +318,28 @@ model_table <- compare_gams(
 # Show Table
 print(model_table)
 
+top6 <- list(best_model, gam24, gam25, gam23, gam27, gam26)
+
+modnames <- c(
+  "best_model", "gam24", "gam25", "gam23", "gam27", "gam26"
+)
+
+modeval <- data.frame(
+  Model = modnames,
+  AIC = numeric(length(top6)),
+  Rsq = numeric(length(top6)),
+  logLik = numeric(length(top6))
+)
+
+for (i in seq_along(top6)) {
+  mod <- top6[[i]]
+  modeval$AIC[i] <- AIC(mod)
+  modeval$Rsq[i] <- summary(mod)$r.sq
+  modeval$logLik[i] <- as.numeric(logLik(mod))
+}
+
+modeval
+
 ##### Best Model Diagnostics and Visualization #####
 # GAM28 was the best model
 best_model <- gam28
