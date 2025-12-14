@@ -1,0 +1,351 @@
+##### G0 caluclation code using GAMs #####
+# Authors: Griffin Pugh and Harrison York
+# Date: Decemeber 14th, 2025
+
+
+##### Libraries #####
+library(DBI)
+library(odbc)
+library(sf)
+library(ggplot2)
+library(dplyr)
+library(terra)
+library(mgcv)
+library(gratia)
+library(effects)
+library(daymetr)
+library(lubridate)
+library(DHARMa)
+library(mgcViz)
+
+
+##### Helper: Model comparison using REML (best for GAMs) #####
+compare_gams <- function(...) {
+  mods <- list(...)
+  data.frame(
+    Model = names(mods),
+    REML  = sapply(mods, function(m)
+      as.numeric(m$gcv.ubre)),
+    EDF   = sapply(mods, function(m)
+      sum(m$edf)),
+    AIC   = sapply(mods, AIC),
+    logLik = sapply(mods, logLik)
+  )
+}
+
+##### MAIN FULL MODELS #####
+# GAM 1: Simple smooths for hour and doy, linear climate
+gam1  <- gam(
+  G0 ~ s(hour) + s(doy) + tmax + prcp30,
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+# GAM 2: Add interaction between hour and doy
+gam2  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    tmax + prcp30,
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+# GAM 3: Add random effect for tortoise ID
+gam3  <- gam(
+  G0 ~ s(hour) + s(doy) + tmax + prcp30 +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+# GAM 3.5: Smooth climate effects + random effect for tortoise ID
+gam3.5 <- gam(
+  G0 ~ s(hour) + s(doy) + s(tmax) + s(prcp30) +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+# GAM 4: Full model with interactions and smooth climate + random effect for tortoise ID
+gam4  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp30) + s(tmax) + s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+# GAM 5-7: Test different precipitation windows
+gam5  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp30) + s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam6  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp60) + s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam7  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+# GAM 8-10: Test different temperature windows
+gam8  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam9  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy, tmax) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam10 <- gam(
+  G0 ~ s(hour) + s(tmax) + ti(hour, tmax) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+# GAM 11-28: Additional model structures to explore
+gam11  <- gam(
+  G0 ~ s(hour, bs = "cc") + s(doy, bs = "cc") + ti(hour, doy) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam12  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(G0_site, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam13  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(doy, tmax) +
+    s(prcp90) + s(G0_site, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam14  <- gam(
+  G0 ~ ti(doy, tmax) +
+    s(prcp90) + s(G0_site, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam15  <- gam(
+  G0 ~ s(hour) + s(doy) + s(prcp90) + s(tmax) + s(G0_site, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam16  <- gam(
+  G0 ~ s(hour) + s(doy) + s(tmax) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam17  <- gam(
+  G0 ~ s(week) + s(doy) + ti(prcp90, doy) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam18  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(prcp90, doy) + ti(tmax, doy) +
+    s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam19  <- gam(
+  G0 ~ s(hour) + s(doy, k = 20) + ti(hour, doy) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam20  <- gam(
+  G0 ~ s(week) + ti(hour, week) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial,
+  method = "REML",
+  data = TortMvClim
+)
+
+gam21  <- gam(
+  G0 ~ s(hour) + s(week) + ti(prcp90, week) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial,
+  method = "REML",
+  data = TortMvClim
+)
+
+gam22  <- gam(
+  G0 ~ s(hour) + s(week) + ti(week, tmax) +
+    s(prcp90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial,
+  method = "REML",
+  data = TortMvClim
+)
+
+gam23  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(tmin) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam24  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(tmax7) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam25  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(tmax14) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam26  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(tmax21) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam27  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(tmax90) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+gam28  <- gam(
+  G0 ~ s(hour) + s(doy) + ti(hour, doy) +
+    s(prcp90) + s(tmax14) + ti(prcp90, tmax14) + s(G0_site, bs = "re") +
+    s(tort_num, bs = "re"),
+  family = binomial(link = "logit"),
+  method = "REML",
+  data = TortMvClim
+)
+
+##### CLEAN MODEL COMPARISON TABLE (REML + AIC) #####
+# Run comparison Table
+model_table <- compare_gams(
+  gam1  = gam1,
+  gam2  = gam2,
+  gam3  = gam3,
+  gam3.5 = gam3.5,
+  gam4  = gam4,
+  gam5  = gam5,
+  gam6  = gam6,
+  gam7  = gam7,
+  gam8  = gam8,
+  gam9  = gam9,
+  gam10 = gam10,
+  gam11 = gam11,
+  gam12 = gam12,
+  gam13 = gam13,
+  gam14 = gam14,
+  gam15 = gam15,
+  gam16 = gam16,
+  gam17 = gam17,
+  gam18 = gam18,
+  gam19 = gam19,
+  gam20 = gam20,
+  gam21 = gam21,
+  gam22 = gam22,
+  gam23 = gam23,
+  gam24 = gam24,
+  gam25 = gam25,
+  gam16 = gam26,
+  gam27 = gam27,
+  gam28 = gam28
+)
+# Show Table
+print(model_table)
+
+##### Best Model Diagnostics and Visualization #####
+# GAM28 was the best model
+best_model <- gam28
+summary(best_model)
+# Visualize smooths
+gratia::draw(best_model, parametric = TRUE, rug = FALSE)
+gratia::draw(
+  best_model,
+  parametric = TRUE,
+  rug = FALSE,
+  select = c(1, 2, 4, 5)
+)  # select specific smooths to plot
+gratia::draw(
+  best_model,
+  parametric = FALSE,
+  rug = FALSE,
+  select = c(3, 6)
+)
+gratia::draw(
+  best_model,
+  parametric = FALSE,
+  rug = FALSE,
+  select = c(7, 8)
+)
+# Check residuals
+gam.check(best_model)
+plot(best_model, pages = 1, rug = FALSE)
+# DHARMa residuals
+r = DHARMa::simulateResiduals(best_model)
+testResiduals(r)
+plot(r)
